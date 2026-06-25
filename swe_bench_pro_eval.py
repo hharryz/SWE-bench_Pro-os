@@ -365,6 +365,7 @@ def eval_with_docker(patch, sample, output_dir, dockerhub_username, scripts_dir,
 
     print(f"Running local-docker evaluation for {uid}")
 
+    container = None
     try:
         try:
             files, entryscript_content = assemble_workspace_files(uid, scripts_dir, patch, sample)
@@ -398,7 +399,7 @@ def eval_with_docker(patch, sample, output_dir, dockerhub_username, scripts_dir,
         run_kwargs = {
             "volumes": volumes,
             "detach": True,
-            "remove": True,
+            "remove": False,
             "entrypoint": "/bin/bash",  # Override image entrypoint
             "command": ["-c", "bash /workspace/entryscript.sh"],
         }
@@ -412,6 +413,8 @@ def eval_with_docker(patch, sample, output_dir, dockerhub_username, scripts_dir,
             dockerhub_image_uri,
             **run_kwargs,
         )
+        with open(os.path.join(output_dir, uid, "container_id.txt"), "w") as f:
+            f.write(container.id + "\n")
 
         result = container.wait()
         status_code = result.get("StatusCode", 1) if isinstance(result, dict) else 1
@@ -428,6 +431,12 @@ def eval_with_docker(patch, sample, output_dir, dockerhub_username, scripts_dir,
         print(f"Error in eval_with_docker for {uid}: {repr(e)}")
         print(f"Error type: {type(e)}")
         return None
+    finally:
+        if container is not None:
+            try:
+                container.remove(force=True)
+            except Exception:
+                pass
 
 
 def parse_args():
